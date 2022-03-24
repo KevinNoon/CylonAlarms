@@ -1,7 +1,7 @@
 package com.optimised.cylonAlarms.tools.iniFilesToDB;
 
 public class HexString {
-    public static String ByteArrayToString(byte[] array, int start) {
+    public static String ByteArrayToString(Byte[] array, int start) {
         if (array.length <= start) return "";
         StringBuilder result = new StringBuilder("0x");
         for (int x = start; x < array.length; x++) {
@@ -10,7 +10,7 @@ public class HexString {
         return result.toString();
     }
 
-    public static char[] GetAlarmTime(byte[] alarmChar) {
+    public static char[] GetAlarmTime(Byte[] alarmChar) {
         char[] timeInfo = new char[5];
         if (alarmChar.length < 14) return timeInfo;
 

@@ -12,14 +12,17 @@ import java.sql.Timestamp;
 @AllArgsConstructor
 @NoArgsConstructor
 
-@Table(name = "AlarmQueue")
+@Table(name = "Alarm_QueueKN")
 public class AlarmQueue {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     Integer id;
+    @Column(name = "site_name")
     String SiteName;
+    @Column(name = "site_number")
     Integer SiteNumber;
     Integer Acknowledged;
     Timestamp Submitted;
-    String AlarmPacket;
+    @Column(name = "alarm_packet")
+    Byte[] AlarmPacket;
 }

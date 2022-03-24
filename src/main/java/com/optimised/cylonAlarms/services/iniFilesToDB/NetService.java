@@ -41,6 +41,7 @@ public class NetService {
     }
 
     public Net getNet(int net,int site){
+        System.out.println(net + " " + site);
         return netRepo.getNetName(net, site).get(0);
     }
 

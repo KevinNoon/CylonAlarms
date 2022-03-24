@@ -1,5 +1,7 @@
 package com.optimised.cylonAlarms.tools.alarmsToIPQueue;
 
+import org.yaml.snakeyaml.util.ArrayUtils;
+
 import java.io.*;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -9,7 +11,7 @@ import static com.optimised.cylonAlarms.tools.iniFilesToDB.Checksums.calCheckSum
 
 public class GetAlarm {
 
-    public static byte[] getRawAlarm(String hostIP,char[] lastTimeInfo, int port) {
+    public static Byte[] getRawAlarm(String hostIP, char[] lastTimeInfo, int port) {
         //Header
         char device = 'P';
         char siteNoByte1 = 0; //Set to 0 for getting alarms
@@ -57,7 +59,7 @@ public class GetAlarm {
             byte[] rawAlarmPacket = new byte[4080];
 
             //Get the number of bytes read
-            bytesRead = input.read(rawAlarmPacket, 0, rawAlarmPacket.length);
+            bytesRead = input.read( rawAlarmPacket, 0, rawAlarmPacket.length);
             //Create an array the same length as the packet from the controller
             rawAlarm = new byte[bytesRead];
             //Copy the message the array to be returned by the function
@@ -71,7 +73,12 @@ public class GetAlarm {
 
             System.out.println("I/O error: " + ex.getMessage());
         }
-        return rawAlarm;
+
+        Byte[] rawAlarmByte = new Byte[rawAlarm.length];
+        for (int i = 0; i < rawAlarm.length; i++) {
+            rawAlarmByte[i] = rawAlarm[i];
+        }
+        return rawAlarmByte;
     }
 
     public static void sendUpdateQueue(String hostIP, int port) {
