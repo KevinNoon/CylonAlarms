@@ -1,6 +1,7 @@
 package com.optimised.cylonAlarms;
 
 import com.optimised.cylonAlarms.model.alarmsToIPQueue.queue.AlarmQueue;
+import com.optimised.cylonAlarms.model.queueToAlarm.Alarm;
 import com.optimised.cylonAlarms.services.alarmsToIPQueue.AlarmQueueService;
 import com.optimised.cylonAlarms.model.iniFilesToDB.alarm.AlarmStr;
 import com.optimised.cylonAlarms.model.iniFilesToDB.controller.Controller;
@@ -11,6 +12,7 @@ import com.optimised.cylonAlarms.services.iniFilesToDB.ControllerService;
 import com.optimised.cylonAlarms.services.iniFilesToDB.NetService;
 import com.optimised.cylonAlarms.services.iniFilesToDB.SiteService;
 import com.optimised.cylonAlarms.tools.iniFilesToDB.Converions;
+import com.optimised.cylonAlarms.tools.queueToAlarm.DataConversions;
 import org.ini4j.InvalidFileFormatException;
 import org.ini4j.Options;
 import org.ini4j.Profile;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.MappedByteBuffer;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,6 +38,7 @@ import java.util.stream.Collectors;
 import static com.optimised.cylonAlarms.tools.alarmsToIPQueue.GetAlarm.getRawAlarm;
 import static com.optimised.cylonAlarms.tools.alarmsToIPQueue.GetAlarm.sendUpdateQueue;
 import static com.optimised.cylonAlarms.tools.iniFilesToDB.HexString.*;
+import static com.optimised.cylonAlarms.tools.queueToAlarm.DataConversions.*;
 
 @Component
 @EnableScheduling
@@ -59,10 +63,10 @@ public class CylonAlmsApplication {
     @Autowired
     AlarmQueueService alarmQueueService;
 
-//    @Scheduled(initialDelay = 1000, fixedRate = 2000000)
+   // @Scheduled(initialDelay = 1000, fixedRate = 2000000)
     public void GetWn3000ini() {
         setPaths();
-        setExisting(false);
+        setExisting();
         try {
             Wini ini = new Wini(new File(wn3000IniPath));
             int noOfSites = ini.get("SiteList", "TotalSites", int.class);
@@ -121,7 +125,6 @@ public class CylonAlmsApplication {
                         e.printStackTrace();
                     }
 
-
                     sec.forEach((y, x) -> {
                         int address;
                         if (y.contains("UC16_")) {
@@ -136,14 +139,15 @@ public class CylonAlmsApplication {
                     });
                 });
             }
-            System.out.println("Removing deleted sites");
-            deleteNoExisting();
-            System.out.println("Finished INI Update");
+
         } catch (InvalidFileFormatException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
+        System.out.println("Removing deleted sites");
+        deleteNoExisting();
+        System.out.println("Finished INI Update");
     }
 
     private static void setPaths() {
@@ -169,57 +173,22 @@ public class CylonAlmsApplication {
         }
     }
 
-    private  void setExisting(Boolean state){
-        List<Site> siteList = siteService.list();
-        siteList.forEach(siteEntity -> {
-            siteEntity.setExisting(state);
-            siteService.AddUpdate(siteEntity);
-        });
-        List<Net> netList = netService.list();
-        netList.forEach(netEntity -> {
-            netEntity.setExisting(state);
-            netService.addUpdate(netEntity);
-        });
-        List<Controller> controllerList = controllerService.list();
-        controllerList.forEach(controllerEntity -> {
-            controllerEntity.setExisting(state);
-            controllerService.addUpdate(controllerEntity);
-        });
-        List<AlarmStr> alarmStrList = alarmStrService.list();
-        alarmStrList.forEach(alarmStrEntity -> {
-            alarmStrEntity.setExisting(state);
-            alarmStrService.addUpdate(alarmStrEntity);
-        });
+    private  void setExisting(){
+        siteService.setExisting();
+        netService.setExisting();
+        controllerService.setExisting();
+        alarmStrService.setExisting();
     }
 
     private void deleteNoExisting(){
-        List<AlarmStr> alarmStrList = alarmStrService.list();
-        alarmStrList.forEach(alarmStrEntity -> {
-            if(!alarmStrEntity.getExisting()) {
-                alarmStrService.delete(alarmStrEntity);
-            }
-        });
-        List<Controller> controllerList = controllerService.list();
-        controllerList.forEach(controllerEntity -> {
-            if(!controllerEntity.getExisting()) {
-                controllerService.delete(controllerEntity);
-            }
-        });
-        List<Net> netList = netService.list();
-        netList.forEach(netEntity -> {
-            if(!netEntity.getExisting()) {
-                netService.delete(netEntity);
-            }
-        });
-        List<Site> siteList = siteService.list();
-        siteList.forEach(siteEntity -> {
-            if(!siteEntity.getExisting()) {
-                siteService.delete(siteEntity);
-            }
-        });
+        alarmStrService.deleteNoExisting();
+        controllerService.deleteNoExisting();
+        netService.deleteNoExisting();
+        siteService.deleteNoExisting();
+
     }
 
-    @Scheduled(initialDelay = 3000, fixedRate =  50000)
+   // @Scheduled(initialDelay = 3000, fixedRate =  50000)
     public void updateAlarmQueue() {
         //Set the path required from the external file
         setPaths();
@@ -244,7 +213,7 @@ public class CylonAlmsApplication {
                 String timeStr = siteEntity.getLastAlarmTime();
                //If the database has a time then set last time to it.
                 if (!(timeStr == null)) {
-                    lastTime = HexToCharArray(timeStr);
+                    lastTime = HexToCharArray(timeStr,0);
                 }
 
                 //Cycle through the alarms until they are all read.
@@ -273,5 +242,200 @@ public class CylonAlmsApplication {
 
             }
         });
+    }
+
+     @Scheduled(initialDelay = 1000, fixedRate = 2000000)
+    public void queueToAlarm(){
+        List<AlarmQueue> alarmQueueList = alarmQueueService.list();
+        alarmQueueList.forEach(alarmQueueEntity -> {
+            Alarm alarm = new Alarm();
+
+            int[] alarmQueue = HexToIntArray(alarmQueueEntity.getAlarmPacket(),2);
+            alarm.setSiteName(alarmQueueEntity.getSiteName());
+            alarm.setSiteNumber(alarmQueueEntity.getSiteNumber());
+
+            Integer siteNo = alarmQueueEntity.getSiteNumber();
+            Integer dotNetNo =  (alarmQueue[9]);
+            if (dotNetNo == 0) dotNetNo = 1;
+            alarm.setUCC4Number(dotNetNo);
+            alarm.setUCC4Name(netService.getNet(dotNetNo,siteNo).getName());
+
+            int alarmType = alarmQueue[11];
+
+
+            alarm.setAlarmType(alarmType);
+
+            System.out.println(alarmQueueEntity.getAlarmPacket());
+
+            Integer controllerNo = 0;
+            String controllerName = "";
+            if (alarmType < 3){
+                controllerNo = (alarmQueue[13]);
+                controllerName = controllerService.getController(controllerNo,dotNetNo).getName();
+            }
+            if (alarmType == 9){
+                 controllerNo = (alarmQueue[17]);
+                controllerName = controllerService.getController(controllerNo,dotNetNo).getName();
+            }
+
+            alarm.setUC16Name(controllerName);
+            alarm.setUC16Number(controllerNo);
+
+            String alarmStr = "";
+            if (alarmType == 1 || alarmType == 9){
+                Integer alarmStrNo = (alarmQueue[38]);
+                if (alarmStrNo > 0)
+                alarmStr = alarmStrService.getAlarmStr(alarmStrNo,dotNetNo).getMessage();
+            }
+
+            switch (alarmType){
+                case 1:{
+                    Type01(alarm,alarmQueue);
+                    if (alarm.getAlarmMessage().length() == 0){
+                        alarm.setAlarmMessage(alarmStr);
+                    }
+                    System.out.println(alarm);
+                    break;
+                }
+                case 2:{
+                    Type02(alarm,alarmQueue);
+                    System.out.println(alarm);
+                    break;
+                }
+                case 3:{
+                    Type03(alarm,alarmQueue);
+                    System.out.println(alarm);
+                    break;
+                }
+                case 4:{
+                    Type04(alarm,alarmQueue);
+                    System.out.println(alarm);
+                    break;
+                }
+                case 5:{
+                    Type05(alarm,alarmQueue);
+                    System.out.println(alarm);
+                    break;
+                }
+                case 8:{
+                    Type08(alarm,alarmQueue);
+                    System.out.println(alarm);
+                    break;
+                }
+            }
+
+        });
+    }
+
+    private static void Type01(Alarm alarm, int[] packet) {
+
+        alarm.setPriority(packet[17]);
+        alarm.setStartedAt(DataConversions.calcTime(packet[23], packet[24], packet[25], packet[26]));
+        alarm.setEndedAt(DataConversions.calcTime(packet[27], packet[28], packet[29], packet[30]));
+
+        if (packet[55] != 0) {
+            alarm.setTriggerPointName(getText(packet, 40, 47));
+            alarm.setTriggerPointNumber(packet[55] & 0xff);
+            alarm.setTriggerPointType(packet[56] != 0);
+            alarm.setTriggerPointUnit(packet[57] + "");
+            if (packet[55] != 255) {
+                alarm.setTriggerPointValue(getValue(packet[58], packet[59], packet[60], packet[61]));
+            }
+        }
+
+        alarm.setAlarmNumber(packet[18] & 0xff);
+        alarm.setProgramModuleNumber(packet[19] & 0xff);
+        alarm.setStringNumber(packet[70] & 0xFF);
+        if (packet[71] != 0)
+            alarm.setAlarmMessage(DataConversions.getAlarmMessage(packet, 71));
+        alarm.setExtraBits(packet[20] & 0xFF);
+        alarm.setExtraInteger(get2ByteInt(packet[21], packet[22]));
+    }
+
+    private static void Type02(Alarm alarm, int[] packet) {
+        alarm.setPriority(packet[17]);
+        alarm.setProgramModuleNumber(255);
+        alarm.setAlarmMessage("System Alarm,");
+        alarm.setExtraBits(1);
+        alarm.setStartedAt(DataConversions.calcTime(packet[27], packet[28], packet[29], packet[30]));
+
+    }
+
+    private static void Type03(Alarm alarm,int[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
+        alarm.setAlarmMessage(DataConversions.getOffLineMessage(packet," Ctrl_"));
+    }
+
+    private static void Type04(Alarm alarm,int[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
+        alarm.setAlarmMessage(DataConversions.getOffLineMessage(packet," Net_"));
+    }
+
+    private static void Type05(Alarm alarm,int[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
+        alarm.setAlarmMessage(setServiceAlarm(packet));
+    }
+
+    private static void Type08(Alarm alarm,int[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
+        alarm.setAlarmMessage(setDialOutFailed(packet));
+    }
+
+    private static void Type09(Alarm alarm,int[] packet) {
+
+
+        alarm.setPriority(packet[22]);
+        alarm.setStartedAt(DataConversions.calcTime(packet[26], packet[27], packet[28], packet[29]));
+        alarm.setEndedAt(DataConversions.calcTime(packet[30], packet[31], packet[32], packet[33]));
+
+        if (packet[89] != 0 && packet[90] != 0) {
+            alarm.setTriggerPointName(getText(packet,49,89));
+            alarm.setTriggerPointNumber(get2ByteInt(packet[89], packet[90]));
+            alarm.setTriggerPointType(packet[90] != 0);
+            alarm.setTriggerPointValue(getValue(packet[93], packet[94], packet[95], packet[96]));
+            alarm.setTriggerPointUnit(packet[93] + "");
+        }
+
+        alarm.setAlarmNumber(get2ByteInt(packet[18], packet[19]));
+        alarm.setProgramModuleNumber(get2ByteInt(packet[20], packet[21]));
+        if (packet[100] != 0)
+            alarm.setAlarmMessage(getAlarmMessage(packet, 102));
+        alarm.setExtraBits(packet[23]);
+        if (alarm.getExtraBits() == 0){
+            alarm.setStringNumber(get2ByteInt(packet[44], packet[45]));
+        } else {
+            alarm.setStringNumber(get2ByteInt(packet[46], packet[47]));
+        }
+        alarm.setExtraInteger(get2ByteInt(packet[24], packet[25]));
+        //System.out.println(alarm);
+    }
+
+
+    public static String setServiceAlarm(int[] packet){
+        String message = "Net Fault ";
+        if (packet[17] == 0) message += " Not servicing";
+        if (packet[18] == 0) message += " Port setup";
+        if (packet[19] == 0) message += " Setup Checksum";
+        if (packet[20] == 0) message += " Local Globals";
+        if (packet[21] == 0) message += " Wide In Globals";
+        if (packet[22] == 0) message += " Wide Out Globals";
+        if (packet[23] == 0) message += " Schedule Checksum";
+        if (packet[24] == 0) message += " Daylight Saving";
+        if (message.equals("Net Fault")) message = "Net OK";
+        return message;
+    }
+
+    public static String setDialOutFailed(int[] packet){
+        String message = "Dial Out Failed";
+        message += " Port_" + packet[17];
+        message += " Queue_" + packet[18];
+        message += " Phone No_" + getText(packet, 19, packet.length - 2);
+
+
+        return message;
     }
 }

@@ -37,11 +37,20 @@ public class HexString {
         timeInfo[4] = (char) (alarmChar[alarmChar.length - 2] & 0xFF);
         return timeInfo;
     }
-    public static char[] HexToCharArray(String hex){
+    public static char[] HexToCharArray(String hex, int offset){
         char[] c = new char[hex.length()/2];
-        for (int i = 0; i < hex.length(); i+=2) {
+        for (int i = offset; i < hex.length(); i+=2) {
             String str = hex.substring(i, i+2);
             c[i/2] = (char)Integer.parseInt(str, 16);
+        }
+        return c;
+    }
+
+    public static int[] HexToIntArray(String hex, int offset){
+        int[] c = new int[hex.length()/2];
+        for (int i = offset; i < hex.length(); i+=2) {
+            String str = hex.substring(i, i+2);
+            c[i/2] = Integer.parseInt(str, 16);
         }
         return c;
     }

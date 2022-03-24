@@ -34,4 +34,12 @@ public class SiteService {
     public void delete(Site site){
         siteRepo.delete(site);
     }
+
+    public void deleteNoExisting(){
+        siteRepo.deleteByExistingFalse();
+    }
+
+    public void setExisting(){
+        siteRepo.existingToFalse();
+    }
 }

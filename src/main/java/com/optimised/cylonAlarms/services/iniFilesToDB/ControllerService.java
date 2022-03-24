@@ -1,6 +1,7 @@
 package com.optimised.cylonAlarms.services.iniFilesToDB;
 
 import com.optimised.cylonAlarms.model.iniFilesToDB.controller.Controller;
+import com.optimised.cylonAlarms.model.iniFilesToDB.net.Net;
 import com.optimised.cylonAlarms.model.iniFilesToDB.site.Site;
 import com.optimised.cylonAlarms.repository.iniFilesToDB.ControllerRepo;
 import org.hibernate.exception.ConstraintViolationException;
@@ -31,5 +32,15 @@ public class ControllerService {
     }
     public void delete(Controller controller){
         controllerRepo.delete(controller);
+    }
+    public void deleteNoExisting(){
+        controllerRepo.deleteByExistingFalse();
+    }
+    public void setExisting(){
+        controllerRepo.existingToFalse();
+    }
+
+    public Controller getController(int controller, int net){
+        return controllerRepo.getNetName(controller, net).get(0);
     }
 }

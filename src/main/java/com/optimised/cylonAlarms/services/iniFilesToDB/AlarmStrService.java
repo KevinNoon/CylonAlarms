@@ -1,6 +1,7 @@
 package com.optimised.cylonAlarms.services.iniFilesToDB;
 
 import com.optimised.cylonAlarms.model.iniFilesToDB.alarm.AlarmStr;
+import com.optimised.cylonAlarms.model.iniFilesToDB.controller.Controller;
 import com.optimised.cylonAlarms.model.iniFilesToDB.site.Site;
 import com.optimised.cylonAlarms.repository.iniFilesToDB.AlarmStrRepo;
 import org.hibernate.exception.ConstraintViolationException;
@@ -32,5 +33,14 @@ public class AlarmStrService {
 
     public void delete(AlarmStr alarmStr){
         alarmStrRepo.delete(alarmStr);
+    }
+    public void deleteNoExisting(){
+        alarmStrRepo.deleteByExistingFalse();
+    }
+    public void setExisting(){
+        alarmStrRepo.existingToFalse();
+    }
+    public AlarmStr getAlarmStr(int alarmStr, int net){
+        return alarmStrRepo.getAlarmStr(alarmStr, net).get(0);
     }
 }

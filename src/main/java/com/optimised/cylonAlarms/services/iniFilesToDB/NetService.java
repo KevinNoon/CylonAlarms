@@ -33,4 +33,15 @@ public class NetService {
     public void delete(Net net){
         netRepo.delete(net);
     }
+    public void deleteNoExisting(){
+        netRepo.deleteByExistingFalse();
+    }
+    public void setExisting(){
+        netRepo.existingToFalse();
+    }
+
+    public Net getNet(int net,int site){
+        return netRepo.getNetName(net, site).get(0);
+    }
+
 }
