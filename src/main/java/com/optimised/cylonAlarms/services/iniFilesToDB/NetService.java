@@ -40,9 +40,16 @@ public class NetService {
         netRepo.existingToFalse();
     }
 
-    public Net getNet(int net,int site){
-        System.out.println(net + " " + site);
-        return netRepo.getNetName(net, site).get(0);
+    public Net getNet(int netNo,int site){
+       // return netRepo.getNetName(netNo, site).get(0);
+
+
+        Net net = new Net();
+        List<Net> netList = netRepo.getNetName(netNo, netNo);
+        if (netList.size() > netNo) {
+            net = netRepo.getNetName(site, netNo).get(0);
+        }
+        return net;
     }
 
 }

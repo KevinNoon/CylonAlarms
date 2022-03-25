@@ -41,6 +41,11 @@ public class ControllerService {
     }
 
     public Controller getController(int controller, int net){
-        return controllerRepo.getNetName(controller, net).get(0);
+        Controller ctrl = new Controller();
+        List<Controller> controllers = controllerRepo.getNetName(controller, net);
+        if (controllers.size() > 0) {
+            ctrl = controllerRepo.getNetName(controller, net).get(0);
+        }
+        return ctrl;
     }
 }

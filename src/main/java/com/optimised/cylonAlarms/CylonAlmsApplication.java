@@ -47,7 +47,9 @@ public class CylonAlmsApplication {
     private static String unitronPath;
     private static String wn3000IniPath;
     private static String sitePath;
-
+    private static int OFFSET_OB = 7;
+    private static int OFFSET_CYL = 4;
+    private static int OFFSET;
     public static void main(String[] args) {
         SpringApplication.run(CylonAlmsApplication.class, args);
     }
@@ -62,6 +64,8 @@ public class CylonAlmsApplication {
     AlarmStrService alarmStrService;
     @Autowired
     AlarmQueueService alarmQueueService;
+
+
 
    // @Scheduled(initialDelay = 1000, fixedRate = 2000000)
     public void GetWn3000ini() {
@@ -246,32 +250,47 @@ public class CylonAlmsApplication {
 
      @Scheduled(initialDelay = 1000, fixedRate = 2000000)
     public void queueToAlarm(){
+
         List<AlarmQueue> alarmQueueList = alarmQueueService.list();
         alarmQueueList.forEach(alarmQueueEntity -> {
             Alarm alarm = new Alarm();
 
             Byte[] alarmQueue = alarmQueueEntity.getAlarmPacket();//HexToIntArray(alarmQueueEntity.getAlarmPacket(),2);
+            System.out.println(alarmQueue[0] );
+            if (alarmQueue[0] == 0x55) {
+                OFFSET = OFFSET_OB;
+            } else {
+                OFFSET = OFFSET_CYL;
+            }
+            System.out.println(OFFSET);
+
             alarm.setSiteName(alarmQueueEntity.getSiteName());
             alarm.setSiteNumber(alarmQueueEntity.getSiteNumber());
 
+//            System.out.println("Sub " + alarmQueueEntity.getSubmitted());
+//            System.out.println("Num " + alarmQueueEntity.getSiteNumber());
+
             Integer siteNo = alarmQueueEntity.getSiteNumber();
-            Integer dotNetNo =  (alarmQueue[11] & 0xFF);
+            Integer dotNetNo =  (alarmQueue[OFFSET + 4] & 0xFF);
             if (dotNetNo == 0) dotNetNo = 1;
             alarm.setUCC4Number(dotNetNo);
+
+            System.out.println("DotNet No " + dotNetNo);
             alarm.setUCC4Name(netService.getNet(dotNetNo,siteNo).getName());
 
-            int alarmType = (alarmQueue[13] & 0xFF);
+            int alarmType = (alarmQueue[OFFSET + 6] & 0xFF);
 
             alarm.setAlarmType(alarmType);
+            System.out.println("AlarmType =" + alarm.getAlarmType());
 
             Integer controllerNo = 0;
             String controllerName = "";
             if (alarmType < 3){
-                controllerNo = (alarmQueue[15] & 0xFF);
+                controllerNo = (alarmQueue[OFFSET + 8] & 0xFF);
                 controllerName = controllerService.getController(controllerNo,dotNetNo).getName();
             }
             if (alarmType == 9){
-                 controllerNo = (alarmQueue[19] & 0xFF);
+                 controllerNo = (alarmQueue[OFFSET + 12] & 0xFF);
                 controllerName = controllerService.getController(controllerNo,dotNetNo).getName();
             }
 
@@ -280,7 +299,7 @@ public class CylonAlmsApplication {
 
             String alarmStr = "";
             if (alarmType == 1 || alarmType == 9){
-                Integer alarmStrNo = (alarmQueue[39] & 0xFF);
+                Integer alarmStrNo = (alarmQueue[OFFSET + 32] & 0xFF);
                 if (alarmStrNo > 0)
                 alarmStr = alarmStrService.getAlarmStr(alarmStrNo,dotNetNo).getMessage();
             }
@@ -291,150 +310,287 @@ public class CylonAlmsApplication {
                     if (alarm.getAlarmMessage().length() == 0){
                         alarm.setAlarmMessage(alarmStr);
                     }
-                    System.out.println(alarmQueueEntity.getSubmitted());
+                    break;
+                }
+                case 2:{
+                    Type02(alarm,alarmQueue);
+                    break;
+                }
+                case 3:{
+                    Type03(alarm,alarmQueue);
+                    break;
+                }
+                case 4:{
+                    Type04(alarm,alarmQueue);
+                    break;
+                }
+                case 5:{
+                    Type05(alarm,alarmQueue);
+                    break;
+                }
+                case 8:{
+ //                   System.out.println("In Type 8");
+                    Type08(alarm,alarmQueue);
+ //                   System.out.println(alarm);
+                    break;
+                }
+                case 9:{
+ //                   System.out.println("In Type 9");
+                    Type09(alarm,alarmQueue);
+ //                   System.out.println(alarm);
+                    break;
+                }
+                case 11:{
+ //                   System.out.println("In Type 11");
+                    Type11(alarm,alarmQueue);
+ //                   System.out.println(alarm);
+                    break;
+                }
+                case 12:{
+ //                   System.out.println("In Type 12");
+                    Type12(alarm,alarmQueue);
+ //                   System.out.println(alarm);
+                    break;
+                }
+                case 13:{
+                    System.out.println("In Type 13");
+                    Type13(alarm,alarmQueue);
                     System.out.println(alarm);
                     break;
                 }
-//                case 2:{
-//                    Type02(alarm,alarmQueue);
-//                    System.out.println(alarm);
-//                    break;
-//                }
-//                case 3:{
-//                    Type03(alarm,alarmQueue);
-//                    System.out.println(alarm);
-//                    break;
-//                }
-//                case 4:{
-//                    Type04(alarm,alarmQueue);
-//                    System.out.println(alarm);
-//                    break;
-//                }
-//                case 5:{
-//                    Type05(alarm,alarmQueue);
-//                    System.out.println(alarm);
-//                    break;
-//                }
-//                case 8:{
-//                    Type08(alarm,alarmQueue);
-//                    System.out.println(alarm);
-//                    break;
-//                }
             }
-
         });
     }
 
     private static void Type01(Alarm alarm, Byte[] packet) {
-        System.out.println("In alarm 01");
-        alarm.setPriority(packet[14]);
-        System.out.println(alarm.getPriority());
-        alarm.setStartedAt(DataConversions.calcTime(packet[25] & 0xFF, packet[26] & 0xFF, packet[27] & 0xFF, packet[28] & 0xFF));
-        System.out.println(packet[26] & 0xFF);
-        alarm.setEndedAt(DataConversions.calcTime(packet[29], packet[30], packet[31], packet[32]));
+        alarm.setPriority(packet[OFFSET + 7]);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 18], packet[OFFSET + 19], packet[OFFSET + 20], packet[OFFSET + 21]));
+        alarm.setEndedAt(calcTime(packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24], packet[OFFSET + 25]));
 
-        if (packet[57] != 0) {
-            alarm.setTriggerPointName(getText(packet, 42, 49));
-            alarm.setTriggerPointNumber(packet[57] & 0xff);
-            alarm.setTriggerPointType(packet[58] != 0);
-            alarm.setTriggerPointUnit(packet[59] + "");
-            if ((packet[57] & 0xFF) != 255) {
-                alarm.setTriggerPointValue(getValue(packet[60], packet[61], packet[62], packet[63]));
+        if (packet[OFFSET + 50] != 0) {
+            alarm.setTriggerPointName(getText(packet, OFFSET + 35, OFFSET + 42));
+            alarm.setTriggerPointNumber(packet[OFFSET + 50] & 0xff);
+            alarm.setTriggerPointType(packet[OFFSET + 51] != 0);
+            alarm.setTriggerPointUnit(packet[OFFSET + 52] + "");
+            if ((packet[OFFSET + 50] & 0xFF) != 255) {
+                alarm.setTriggerPointValue(getValue(packet[OFFSET + 53], packet[OFFSET + 54], packet[OFFSET + 55], packet[OFFSET + 56]));
             }
         }
 
-        alarm.setAlarmNumber(packet[20] & 0xff);
-        alarm.setProgramModuleNumber(packet[21] & 0xff);
-        alarm.setStringNumber(packet[72] & 0xFF);
-        if (packet[73] != 0)
-            alarm.setAlarmMessage(DataConversions.getAlarmMessage(packet, 73));
-        alarm.setExtraBits(packet[22] & 0xFF);
-        alarm.setExtraInteger(get2ByteInt(packet[23], packet[23]));
+        alarm.setAlarmNumber(packet[OFFSET + 13] & 0xff);
+        alarm.setProgramModuleNumber(packet[OFFSET + 14] & 0xff);
+        alarm.setStringNumber(packet[OFFSET + 65] & 0xFF);
+        if (packet[OFFSET + 66] != 0)
+            alarm.setAlarmMessage(getAlarmMessage(packet, OFFSET + 66));
+        alarm.setExtraBits(packet[OFFSET + 15] & 0xFF);
+        alarm.setExtraInteger(get2ByteInt(packet[OFFSET + 16], packet[OFFSET + 17]));
     }
-//
-//    private static void Type02(Alarm alarm, byte[] packet) {
-//        alarm.setPriority(packet[17]);
-//        alarm.setProgramModuleNumber(255);
-//        alarm.setAlarmMessage("System Alarm,");
-//        alarm.setExtraBits(1);
-//        alarm.setStartedAt(DataConversions.calcTime(packet[27], packet[28], packet[29], packet[30]));
-//
-//    }
-//
-//    private static void Type03(Alarm alarm, byte[] packet) {
-//        alarm.setPriority(1);
-//        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
-//        alarm.setAlarmMessage(DataConversions.getOffLineMessage(packet," Ctrl_"));
-//    }
-//
-//    private static void Type04(Alarm alarm, byte[] packet) {
-//        alarm.setPriority(1);
-//        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
-//        alarm.setAlarmMessage(DataConversions.getOffLineMessage(packet," Net_"));
-//    }
-//
-//    private static void Type05(Alarm alarm, byte[] packet) {
-//        alarm.setPriority(1);
-//        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
-//        alarm.setAlarmMessage(setServiceAlarm(packet));
-//    }
-//
-//    private static void Type08(Alarm alarm, byte[] packet) {
-//        alarm.setPriority(1);
-//        alarm.setStartedAt(DataConversions.calcTime(packet[13], packet[14], packet[15], packet[16]));
-//        alarm.setAlarmMessage(setDialOutFailed(packet));
-//    }
-//
-//    private static void Type09(Alarm alarm, byte[] packet) {
-//
-//
-//        alarm.setPriority(packet[22]);
-//        alarm.setStartedAt(DataConversions.calcTime(packet[26], packet[27], packet[28], packet[29]));
-//        alarm.setEndedAt(DataConversions.calcTime(packet[30], packet[31], packet[32], packet[33]));
-//
-//        if (packet[89] != 0 && packet[90] != 0) {
-//            alarm.setTriggerPointName(getText(packet,49,89));
-//            alarm.setTriggerPointNumber(get2ByteInt(packet[89], packet[90]));
-//            alarm.setTriggerPointType(packet[90] != 0);
-//            alarm.setTriggerPointValue(getValue(packet[93], packet[94], packet[95], packet[96]));
-//            alarm.setTriggerPointUnit(packet[93] + "");
-//        }
-//
-//        alarm.setAlarmNumber(get2ByteInt(packet[18], packet[19]));
-//        alarm.setProgramModuleNumber(get2ByteInt(packet[20], packet[21]));
-//        if (packet[100] != 0)
-//            alarm.setAlarmMessage(getAlarmMessage(packet, 102));
-//        alarm.setExtraBits(packet[23]);
-//        if (alarm.getExtraBits() == 0){
-//            alarm.setStringNumber(get2ByteInt(packet[44], packet[45]));
-//        } else {
-//            alarm.setStringNumber(get2ByteInt(packet[46], packet[47]));
-//        }
-//        alarm.setExtraInteger(get2ByteInt(packet[24], packet[25]));
-//        //System.out.println(alarm);
-//    }
-//
-//
-//    public static String setServiceAlarm(byte[] packet){
-//        String message = "Net Fault ";
-//        if (packet[17] == 0) message += " Not servicing";
-//        if (packet[18] == 0) message += " Port setup";
-//        if (packet[19] == 0) message += " Setup Checksum";
-//        if (packet[20] == 0) message += " Local Globals";
-//        if (packet[21] == 0) message += " Wide In Globals";
-//        if (packet[22] == 0) message += " Wide Out Globals";
-//        if (packet[23] == 0) message += " Schedule Checksum";
-//        if (packet[24] == 0) message += " Daylight Saving";
-//        if (message.equals("Net Fault")) message = "Net OK";
-//        return message;
-//    }
-//
-//    public static String setDialOutFailed(byte[] packet){
-//        String message = "Dial Out Failed";
-//        message += " Port_" + (packet[17] & 0xFF);
-//        message += " Queue_" + (packet[18] & 0xFF);
-//        message += " Phone No_" + getText(packet, 19, packet.length - 2);
-//
-//        return message;
-//    }
+
+    private static void Type02(Alarm alarm, Byte[] packet) {
+        alarm.setPriority(packet[OFFSET + 12]);
+        alarm.setProgramModuleNumber(255);
+        alarm.setAlarmMessage("System Alarm,");
+        alarm.setExtraBits(1);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24], packet[OFFSET + 25]));
+
+    }
+
+    private static void Type03(Alarm alarm, Byte[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(getOffLineMessage(packet," Ctrl_", OFFSET + 12));
+    }
+
+    private static void Type04(Alarm alarm, Byte[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(DataConversions.getOffLineMessage(packet," Net_", OFFSET + 12));
+    }
+
+    private static void Type05(Alarm alarm, Byte[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(setServiceAlarm(packet,OFFSET + 12));
+    }
+
+    private static void Type08(Alarm alarm, Byte[] packet) {
+        alarm.setPriority(1);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(setDialOutFailed(packet,OFFSET + 12));
+    }
+
+    private static void Type09(Alarm alarm, Byte[] packet) {
+
+
+        alarm.setPriority(packet[OFFSET + 17]);
+        alarm.setStartedAt(DataConversions.calcTime(packet[OFFSET + 21], packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24]));
+        alarm.setEndedAt(DataConversions.calcTime(packet[OFFSET + 25], packet[OFFSET + 26], packet[OFFSET + 27], packet[OFFSET + 28]));
+
+        if (packet[OFFSET + 84] != 0 && packet[OFFSET + 85] != 0) {
+            alarm.setTriggerPointName(getText(packet,OFFSET + 44,OFFSET + 83));
+            alarm.setTriggerPointNumber(get2ByteInt(packet[OFFSET + 84], packet[OFFSET + 85]));
+            alarm.setTriggerPointType(packet[OFFSET + 86] != 0);
+            alarm.setTriggerPointValue(getValue(packet[OFFSET + 88], packet[OFFSET + 89], packet[OFFSET + 90], packet[OFFSET + 91]));
+            alarm.setTriggerPointUnit(packet[OFFSET + 87] + "");
+        }
+
+        alarm.setAlarmNumber(get2ByteInt(packet[OFFSET + 13], packet[OFFSET + 14]));
+        alarm.setProgramModuleNumber(get2ByteInt(packet[OFFSET + 15], packet[OFFSET + 16]));
+        if (packet[OFFSET + 95] != 0)
+            alarm.setAlarmMessage(getAlarmMessage(packet, OFFSET + 97));
+        alarm.setExtraBits(packet[OFFSET + 18]);
+        if (alarm.getExtraBits() == 0){
+            alarm.setStringNumber(get2ByteInt(packet[OFFSET + 39], packet[OFFSET + 40]));
+        } else {
+            alarm.setStringNumber(get2ByteInt(packet[OFFSET + 41], packet[OFFSET + 42]));
+        }
+        alarm.setExtraInteger(get2ByteInt(packet[OFFSET + 19], packet[OFFSET + 20]));
+        //System.out.println(alarm);
+    }
+
+
+    private static void Type11(Alarm alarm, Byte[] packet) {
+        alarm.setPriority(packet[OFFSET + 7]);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(setWirelessSensorAlarm(packet,OFFSET + 12));
+    }
+
+    private static void Type12(Alarm alarm, Byte[] packet) {
+        alarm.setPriority(packet[OFFSET + 7]);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(getAlarmMessage(packet, OFFSET + 16));
+    }
+
+    private static void Type13(Alarm alarm,Byte[] packet) {
+        alarm.setPriority(packet[OFFSET + 7]);
+        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(ModbusMessage(packet, OFFSET + 12));
+    }
+
+    public static String setServiceAlarm(Byte[] packet, int messageStart){
+        String message = "Net Fault ";
+        if (packet[17] == 0) message += " Not servicing";
+        if (packet[18] == 0) message += " Port setup";
+        if (packet[19] == 0) message += " Setup Checksum";
+        if (packet[20] == 0) message += " Local Globals";
+        if (packet[21] == 0) message += " Wide In Globals";
+        if (packet[22] == 0) message += " Wide Out Globals";
+        if (packet[23] == 0) message += " Schedule Checksum";
+        if (packet[24] == 0) message += " Daylight Saving";
+        if (message.equals("Net Fault")) message = "Net OK";
+        return message;
+    }
+
+    public static String setDialOutFailed(Byte[] packet, int messageStart){
+        String message = "Dial Out Failed";
+        message += " Port_" + (packet[messageStart] & 0xFF);
+        message += " Queue_" + (packet[messageStart + 1] & 0xFF);
+        message += " Phone No_" + getText(packet, messageStart + 2, packet.length - 2);
+
+        return message;
+    }
+
+    public static String setWirelessSensorAlarm(Byte[] packet, int messageStart){
+        String message = "Wireless Sensor";
+        switch (packet[messageStart]){
+            case 0 : {
+                message += " Offline"; break;
+            }
+            case 1 : {
+                message += " Online"; break;
+            }
+            case 2 : {
+                message += " Alarm Disabled"; break;
+            }
+            default: {
+                message += " error";
+            }
+        }
+
+        message += " BaseStation_" + (packet[messageStart + 1] & 0xFF);
+        message += " SensorNo_" + (packet[messageStart + 2] & 0xFF);
+        message += " SensorType_";
+        switch (packet[messageStart + 3]){
+            case 1 : {
+                message += "SR04"; break;
+            }
+            case 2 : {
+                message += "SR04P"; break;
+            }
+            case 3 : {
+                message += "SR04PT"; break;
+            }
+            case 4 : {
+                message += "SR04PST"; break;
+            }
+            case 5 : {
+                message += "SR04rH"; break;
+            }
+            case 6 : {
+                message += "SR04PrH"; break;
+            }
+            case 7 : {
+                message += "SR04PTrH"; break;
+            }
+            case 8 : {
+                message += "SR65"; break;
+            }
+            case 9 : {
+                message += "SR65_AKF62"; break;
+            }
+            case 10 : {
+                message += "SR65_AKF135"; break;
+            }
+            case 11 : {
+                message += "SR65_AKF192"; break;
+            }
+            case 12 : {
+                message += "SR65_AKF465"; break;
+            }
+            case 13 : {
+                message += "SR65_TF_250"; break;
+            }
+            case 14 : {
+                message += "SR65_VFG"; break;
+            }
+            case 15 : {
+                message += "SR_MDS"; break;
+            }
+            case 16 : {
+                message += "PTM200-1"; break;
+            }
+            case 17 : {
+                message += "PTM200-2"; break;
+            }
+            default: {
+                message += "SR04_"; break;
+            }
+        }
+        String mes = getText(packet, messageStart + 4, messageStart + 36);
+        if (mes.length() > 0){message += " BaseName_" + mes;}
+
+        mes  = getText(packet, messageStart + 37, messageStart + 69);
+        if (mes.length() > 0){message += " SensorName_" + mes;}
+        return message;
+    }
+
+    private static String ModbusMessage(Byte[] packet, int messageStart) {
+        String status = "Modbus device_";
+        status += status + (packet[messageStart] & 0xFF);
+        status += getAlarmMessage(packet,messageStart + 2);
+
+        switch (packet[messageStart + 1]){
+            case 0: {status += " offline"; break;}
+            case 1: {status += " Online"; break;}
+            case 2: {status += " offline disabled"; break;}
+            default: status += " offline";
+        }
+
+
+//        String Status = "offline";
+//        if (packet[messageStart] == 1) Status = "Online";
+//        if (packet[messageStart] == 2) Status = "offline disabled";
+//        Status = "External modbus device: Modbus " + (packet[16] & 0xFF) + " is " + Status;
+        return status;
+    }
 }
