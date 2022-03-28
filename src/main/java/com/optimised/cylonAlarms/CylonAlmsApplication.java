@@ -383,8 +383,8 @@ public class CylonAlmsApplication {
             }
         }
 
-        alarm.setAlarmNumber(packet[OFFSET + 13] & 0xff);
-        alarm.setProgramModuleNumber(packet[OFFSET + 14] & 0xff);
+        alarm.setAlarmNumber(packet[OFFSET + 13] & 0xFF);
+        alarm.setProgramModuleNumber(packet[OFFSET + 14] & 0xFF);
         alarm.setStringNumber(packet[OFFSET + 65] & 0xFF);
         if (packet[OFFSET + 66] != 0)
             alarm.setAlarmMessage(TextFunctions.getText(packet, OFFSET + 66, packet.length - 1));
