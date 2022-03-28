@@ -12,7 +12,8 @@ import com.optimised.cylonAlarms.services.iniFilesToDB.ControllerService;
 import com.optimised.cylonAlarms.services.iniFilesToDB.NetService;
 import com.optimised.cylonAlarms.services.iniFilesToDB.SiteService;
 import com.optimised.cylonAlarms.tools.iniFilesToDB.Converions;
-import com.optimised.cylonAlarms.tools.queueToAlarm.DataConversions;
+import com.optimised.cylonAlarms.tools.queueToAlarm.MathFunctions;
+import com.optimised.cylonAlarms.tools.queueToAlarm.TextFunctions;
 import org.ini4j.InvalidFileFormatException;
 import org.ini4j.Options;
 import org.ini4j.Profile;
@@ -27,7 +28,6 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.MappedByteBuffer;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 import static com.optimised.cylonAlarms.tools.alarmsToIPQueue.GetAlarm.getRawAlarm;
 import static com.optimised.cylonAlarms.tools.alarmsToIPQueue.GetAlarm.sendUpdateQueue;
 import static com.optimised.cylonAlarms.tools.iniFilesToDB.HexString.*;
-import static com.optimised.cylonAlarms.tools.queueToAlarm.DataConversions.*;
+import static com.optimised.cylonAlarms.tools.queueToAlarm.MathFunctions.*;
 
 @Component
 @EnableScheduling
@@ -358,17 +358,23 @@ public class CylonAlmsApplication {
                     System.out.println(alarm);
                     break;
                 }
+                case 14:{
+                    System.out.println("In Type 14");
+                    Type14(alarm,alarmQueue);
+                    System.out.println(alarm);
+                    break;
+                }
             }
         });
     }
 
     private static void Type01(Alarm alarm, Byte[] packet) {
         alarm.setPriority(packet[OFFSET + 7]);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 18], packet[OFFSET + 19], packet[OFFSET + 20], packet[OFFSET + 21]));
-        alarm.setEndedAt(calcTime(packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24], packet[OFFSET + 25]));
+        alarm.setStartedAt(getTime(packet[OFFSET + 18], packet[OFFSET + 19], packet[OFFSET + 20], packet[OFFSET + 21]));
+        alarm.setEndedAt(getTime(packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24], packet[OFFSET + 25]));
 
         if (packet[OFFSET + 50] != 0) {
-            alarm.setTriggerPointName(getText(packet, OFFSET + 35, OFFSET + 42));
+            alarm.setTriggerPointName(TextFunctions.getText(packet, OFFSET + 35, OFFSET + 42));
             alarm.setTriggerPointNumber(packet[OFFSET + 50] & 0xff);
             alarm.setTriggerPointType(packet[OFFSET + 51] != 0);
             alarm.setTriggerPointUnit(packet[OFFSET + 52] + "");
@@ -381,7 +387,7 @@ public class CylonAlmsApplication {
         alarm.setProgramModuleNumber(packet[OFFSET + 14] & 0xff);
         alarm.setStringNumber(packet[OFFSET + 65] & 0xFF);
         if (packet[OFFSET + 66] != 0)
-            alarm.setAlarmMessage(getAlarmMessage(packet, OFFSET + 66));
+            alarm.setAlarmMessage(TextFunctions.getText(packet, OFFSET + 66, packet.length - 1));
         alarm.setExtraBits(packet[OFFSET + 15] & 0xFF);
         alarm.setExtraInteger(get2ByteInt(packet[OFFSET + 16], packet[OFFSET + 17]));
     }
@@ -391,43 +397,43 @@ public class CylonAlmsApplication {
         alarm.setProgramModuleNumber(255);
         alarm.setAlarmMessage("System Alarm,");
         alarm.setExtraBits(1);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24], packet[OFFSET + 25]));
+        alarm.setStartedAt(getTime(packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24], packet[OFFSET + 25]));
 
     }
 
     private static void Type03(Alarm alarm, Byte[] packet) {
         alarm.setPriority(1);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
-        alarm.setAlarmMessage(getOffLineMessage(packet," Ctrl_", OFFSET + 12));
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getOffLineMessage(packet," Ctrl_", OFFSET + 12));
     }
 
     private static void Type04(Alarm alarm, Byte[] packet) {
         alarm.setPriority(1);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
-        alarm.setAlarmMessage(DataConversions.getOffLineMessage(packet," Net_", OFFSET + 12));
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getOffLineMessage(packet," Net_", OFFSET + 12));
     }
 
     private static void Type05(Alarm alarm, Byte[] packet) {
         alarm.setPriority(1);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
-        alarm.setAlarmMessage(setServiceAlarm(packet,OFFSET + 12));
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getServiceAlarm(packet,OFFSET + 12));
     }
 
     private static void Type08(Alarm alarm, Byte[] packet) {
         alarm.setPriority(1);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
-        alarm.setAlarmMessage(setDialOutFailed(packet,OFFSET + 12));
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getDialOutFailed(packet,OFFSET + 12));
     }
 
     private static void Type09(Alarm alarm, Byte[] packet) {
 
 
         alarm.setPriority(packet[OFFSET + 17]);
-        alarm.setStartedAt(DataConversions.calcTime(packet[OFFSET + 21], packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24]));
-        alarm.setEndedAt(DataConversions.calcTime(packet[OFFSET + 25], packet[OFFSET + 26], packet[OFFSET + 27], packet[OFFSET + 28]));
+        alarm.setStartedAt(MathFunctions.getTime(packet[OFFSET + 21], packet[OFFSET + 22], packet[OFFSET + 23], packet[OFFSET + 24]));
+        alarm.setEndedAt(MathFunctions.getTime(packet[OFFSET + 25], packet[OFFSET + 26], packet[OFFSET + 27], packet[OFFSET + 28]));
 
         if (packet[OFFSET + 84] != 0 && packet[OFFSET + 85] != 0) {
-            alarm.setTriggerPointName(getText(packet,OFFSET + 44,OFFSET + 83));
+            alarm.setTriggerPointName(TextFunctions.getText(packet,OFFSET + 44,OFFSET + 83));
             alarm.setTriggerPointNumber(get2ByteInt(packet[OFFSET + 84], packet[OFFSET + 85]));
             alarm.setTriggerPointType(packet[OFFSET + 86] != 0);
             alarm.setTriggerPointValue(getValue(packet[OFFSET + 88], packet[OFFSET + 89], packet[OFFSET + 90], packet[OFFSET + 91]));
@@ -437,7 +443,7 @@ public class CylonAlmsApplication {
         alarm.setAlarmNumber(get2ByteInt(packet[OFFSET + 13], packet[OFFSET + 14]));
         alarm.setProgramModuleNumber(get2ByteInt(packet[OFFSET + 15], packet[OFFSET + 16]));
         if (packet[OFFSET + 95] != 0)
-            alarm.setAlarmMessage(getAlarmMessage(packet, OFFSET + 97));
+            alarm.setAlarmMessage(TextFunctions.getText(packet, OFFSET + 97,packet.length - 1));
         alarm.setExtraBits(packet[OFFSET + 18]);
         if (alarm.getExtraBits() == 0){
             alarm.setStringNumber(get2ByteInt(packet[OFFSET + 39], packet[OFFSET + 40]));
@@ -448,149 +454,28 @@ public class CylonAlmsApplication {
         //System.out.println(alarm);
     }
 
-
     private static void Type11(Alarm alarm, Byte[] packet) {
         alarm.setPriority(packet[OFFSET + 7]);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
-        alarm.setAlarmMessage(setWirelessSensorAlarm(packet,OFFSET + 12));
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getWirelessSensorAlarm(packet,OFFSET + 12));
     }
 
     private static void Type12(Alarm alarm, Byte[] packet) {
         alarm.setPriority(packet[OFFSET + 7]);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
-        alarm.setAlarmMessage(getAlarmMessage(packet, OFFSET + 16));
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getText(packet, OFFSET + 16,packet.length - 1));
     }
 
     private static void Type13(Alarm alarm,Byte[] packet) {
         alarm.setPriority(packet[OFFSET + 7]);
-        alarm.setStartedAt(calcTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
-        alarm.setAlarmMessage(ModbusMessage(packet, OFFSET + 12));
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getModbusMessage(packet, OFFSET + 12));
     }
 
-    public static String setServiceAlarm(Byte[] packet, int messageStart){
-        String message = "Net Fault ";
-        if (packet[17] == 0) message += " Not servicing";
-        if (packet[18] == 0) message += " Port setup";
-        if (packet[19] == 0) message += " Setup Checksum";
-        if (packet[20] == 0) message += " Local Globals";
-        if (packet[21] == 0) message += " Wide In Globals";
-        if (packet[22] == 0) message += " Wide Out Globals";
-        if (packet[23] == 0) message += " Schedule Checksum";
-        if (packet[24] == 0) message += " Daylight Saving";
-        if (message.equals("Net Fault")) message = "Net OK";
-        return message;
+    private static void Type14(Alarm alarm,Byte[] packet) {
+        alarm.setPriority(packet[OFFSET + 7]);
+        alarm.setStartedAt(getTime(packet[OFFSET + 8], packet[OFFSET + 9], packet[OFFSET + 10], packet[OFFSET + 11]));
+        alarm.setAlarmMessage(TextFunctions.getBACNetMessage(packet, OFFSET + 12));
     }
 
-    public static String setDialOutFailed(Byte[] packet, int messageStart){
-        String message = "Dial Out Failed";
-        message += " Port_" + (packet[messageStart] & 0xFF);
-        message += " Queue_" + (packet[messageStart + 1] & 0xFF);
-        message += " Phone No_" + getText(packet, messageStart + 2, packet.length - 2);
-
-        return message;
-    }
-
-    public static String setWirelessSensorAlarm(Byte[] packet, int messageStart){
-        String message = "Wireless Sensor";
-        switch (packet[messageStart]){
-            case 0 : {
-                message += " Offline"; break;
-            }
-            case 1 : {
-                message += " Online"; break;
-            }
-            case 2 : {
-                message += " Alarm Disabled"; break;
-            }
-            default: {
-                message += " error";
-            }
-        }
-
-        message += " BaseStation_" + (packet[messageStart + 1] & 0xFF);
-        message += " SensorNo_" + (packet[messageStart + 2] & 0xFF);
-        message += " SensorType_";
-        switch (packet[messageStart + 3]){
-            case 1 : {
-                message += "SR04"; break;
-            }
-            case 2 : {
-                message += "SR04P"; break;
-            }
-            case 3 : {
-                message += "SR04PT"; break;
-            }
-            case 4 : {
-                message += "SR04PST"; break;
-            }
-            case 5 : {
-                message += "SR04rH"; break;
-            }
-            case 6 : {
-                message += "SR04PrH"; break;
-            }
-            case 7 : {
-                message += "SR04PTrH"; break;
-            }
-            case 8 : {
-                message += "SR65"; break;
-            }
-            case 9 : {
-                message += "SR65_AKF62"; break;
-            }
-            case 10 : {
-                message += "SR65_AKF135"; break;
-            }
-            case 11 : {
-                message += "SR65_AKF192"; break;
-            }
-            case 12 : {
-                message += "SR65_AKF465"; break;
-            }
-            case 13 : {
-                message += "SR65_TF_250"; break;
-            }
-            case 14 : {
-                message += "SR65_VFG"; break;
-            }
-            case 15 : {
-                message += "SR_MDS"; break;
-            }
-            case 16 : {
-                message += "PTM200-1"; break;
-            }
-            case 17 : {
-                message += "PTM200-2"; break;
-            }
-            default: {
-                message += "SR04_"; break;
-            }
-        }
-        String mes = getText(packet, messageStart + 4, messageStart + 36);
-        if (mes.length() > 0){message += " BaseName_" + mes;}
-
-        mes  = getText(packet, messageStart + 37, messageStart + 69);
-        if (mes.length() > 0){message += " SensorName_" + mes;}
-        return message;
-    }
-
-    private static String ModbusMessage(Byte[] packet, int messageStart) {
-        String status = "Modbus device_";
-        status += status + (packet[messageStart] & 0xFF);
-        status += getAlarmMessage(packet,messageStart + 2);
-
-        switch (packet[messageStart + 1]){
-            case 0: {status += " offline"; break;}
-            case 1: {status += " Online"; break;}
-            case 2: {status += " offline disabled"; break;}
-            default: status += " offline";
-        }
-
-
-//        String Status = "offline";
-//        if (packet[messageStart] == 1) Status = "Online";
-//        if (packet[messageStart] == 2) Status = "offline disabled";
-//        Status = "External modbus device: Modbus " + (packet[16] & 0xFF) + " is " + Status;
-        return status;
-    }
 }
