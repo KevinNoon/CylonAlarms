@@ -2,6 +2,7 @@ package com.optimised.cylonAlarms;
 
 import com.optimised.cylonAlarms.model.alarmsToIPQueue.queue.AlarmQueue;
 import com.optimised.cylonAlarms.model.queueToAlarm.Alarm;
+import com.optimised.cylonAlarms.services.alarm.AlarmService;
 import com.optimised.cylonAlarms.services.alarmsToIPQueue.AlarmQueueService;
 import com.optimised.cylonAlarms.model.iniFilesToDB.alarm.AlarmStr;
 import com.optimised.cylonAlarms.model.iniFilesToDB.controller.Controller;
@@ -64,6 +65,8 @@ public class CylonAlmsApplication {
     AlarmStrService alarmStrService;
     @Autowired
     AlarmQueueService alarmQueueService;
+    @Autowired
+    AlarmService alarmService;
 
 
 
@@ -365,6 +368,8 @@ public class CylonAlmsApplication {
                     break;
                 }
             }
+     //       alarm.setId(null);
+            alarmService.save(alarm);
         });
     }
 
