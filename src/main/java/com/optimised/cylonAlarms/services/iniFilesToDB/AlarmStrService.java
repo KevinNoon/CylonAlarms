@@ -40,7 +40,13 @@ public class AlarmStrService {
     public void setExisting(){
         alarmStrRepo.existingToFalse();
     }
-    public AlarmStr getAlarmStr(int alarmStr, int net){
-        return alarmStrRepo.getAlarmStr(alarmStr, net).get(0);
+    public AlarmStr getAlarmStr(int alarmStrNo, int net, int site){
+        if (alarmStrRepo.getAlarmStr(alarmStrNo, net,site).size() > 0){
+        return alarmStrRepo.getAlarmStr(alarmStrNo, net,site).get(0);}
+        else {
+            AlarmStr alarmStr = new AlarmStr();
+            alarmStr.setMessage("No Message");
+            return alarmStr;
+        }
     }
 }

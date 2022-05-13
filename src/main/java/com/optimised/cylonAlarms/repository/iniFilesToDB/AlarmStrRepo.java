@@ -24,6 +24,9 @@ public interface AlarmStrRepo extends CrudRepository<AlarmStr,Long> {
     @Query("DELETE FROM AlarmStr WHERE existing=false ")
     public void deleteByExistingFalse();
 
-    @Query("SELECT a FROM AlarmStr a JOIN a.net n WHERE a.number = ?1 AND n.address = ?2")
-    List<AlarmStr> getAlarmStr(int alarmStr, int net);
+//    @Query("SELECT a FROM AlarmStr a JOIN a.net n WHERE a.number = ?1 AND n.address = ?2")
+//    List<AlarmStr> getAlarmStr(int alarmStr, int net);
+
+    @Query("SELECT a FROM AlarmStr a JOIN a.net n JOIN n.site s WHERE a.number = ?1 AND n.address = ?2 AND s.siteNumber = ?3")
+    List<AlarmStr> getAlarmStr(int alarmStr, int net, int siteNo);
 }
