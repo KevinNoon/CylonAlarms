@@ -1,4 +1,4 @@
-package com.optimised.cylonAlarms.model.alarmsToIPQueue.queue;
+package com.optimised.cylonAlarms.model.alarmsToModemQueue;
 
 import lombok.*;
 
@@ -12,10 +12,10 @@ import java.sql.Timestamp;
 @AllArgsConstructor
 @NoArgsConstructor
 
-@Table(name = "Alarm_QueueKN")
-public class AlarmQueue {
+@Table(name = "Alarm_Queue")
+public class AlarmModemQueue {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     Integer id;
     @Column(name = "site_name")
     String SiteName;
